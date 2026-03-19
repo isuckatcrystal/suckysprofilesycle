@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omni-24/7 | Randomizer</title>
+    <style>
+        :root { --bg: #09090b; --card: #111113; --accent: #5865f2; --border: #27272a; --green: #10b981; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: #fff; padding: 15px; margin: 0; display: flex; justify-content: center; }
+
+        .app { width: 100%; max-width: 480px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 25px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        h1 { font-size: 22px; margin: 0; color: var(--accent); letter-spacing: -1px; }
+        .tag { font-size: 10px; background: #222; padding: 4px 8px; border-radius: 4px; color: #888; margin-bottom: 20px; display: inline-block; }
+
+        label { display: block; font-size: 11px; font-weight: bold; color: #71717a; margin-bottom: 8px; text-transform: uppercase; }
+        input, textarea { width: 100%; background: #000; border: 1px solid var(--border); color: #fff; padding: 14px; border-radius: 10px; margin-bottom: 15px; font-size: 14px; outline: none; }
+        
+        .terminal { background: #050505; padding: 15px; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 12px; height: 150px; overflow-y: auto; color: var(--green); border: 1px solid #1a1a1a; margin-bottom: 20px; }
+        
+        button { width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; font-size: 14px; }
+        .btn-start { background: var(--accent); color: #fff; }
+        .btn-stop { background: #ef4444; color: #fff; display: none; }
+        
+        .status-bar { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="app">
+    <h1>Omni-24/7</h1>
+    <div class="tag">RANDOMIZED CYCLE ACTIVE</div>
+
+    <label>Account Token</label>
+    <input type="password" id="token" placeholder="Your Discord Token...">
+
+    <label>PFP Links (Direct URL)</label>
+    <textarea id="pfps" placeholder="https://i.imgur.com/link1.png&#10;https://i.imgur.com/link2.png" style="height: 80px;"></textarea>
+
+    <label>Custom Status Messages</label>
+    <textarea id="stats" placeholder="Modding Pojav...&#10;In the lab...&#10;AFK but not really" style="height: 80px;"></textarea>
+
+    <div class="status-bar">
+        <span id="next-run">Next: Waiting...</span>
+        <span id="wake-lock">WakeLock: OFF</span>
+    </div>
+    <div class="terminal" id="log">SYSTEM READY. [PRESS INITIATE]</div>
+
+    <button id="start" class="btn-start" onclick="initiate()">INITIATE 24/7 THREAD</button>
+    <button id="stop" class="btn-stop" onclick="terminate()">EMERGENCY KILL</button>
+    
+    <video id="no-sleep-video" loop playsinline muted style="display:none;"></video>
+</div>
+
+<script>
+    let active = false;
+    let nextTimeout = null;
+
+    const log = (m, err=false) => {
+        const d = document.getElementById('log');
+        d.innerHTML += `<div style="color:${err?'#f87171':''}">[${new Date().toLocaleTimeString()}] ${m}</div>`;
+        d.scrollTop = d.scrollHeight;
+    };
+
+    // Forces the phone to stay awake
+    function toggleWakeLock(on) {
+        const video = document.getElementById('no-sleep-video');
+        if(on) {
+            video.src = "data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAADxtb292AAAAbG12aGQAAAAA36Y+9N+mPvQAAQAABAAABAAAAAAAAAAAAAAAAAQAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAABAAABF90cmFrAAAAXHRraGQAAAAE36Y+9N+mPvQAAQABAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAABAAAABhtZGlhAAAAIG1kaGQAAAAA36Y+9N+mPvQAAQAABAAABAAhAAAAAAArbWluZgAAABxtaG9kAAAAAAAAAAAAAAAKZGludm8AAAAUcmVmZAAAAA5tcDRhAAAAAAAABF9zdGJsAAAALXN0c2QAAAAAAAAAAQAAAB1tcDRhAAAAAAAAAAEAAAAAAAAAAAAEAAEAAAAAAABzdHRzAAAAAAAAAAEAAAABAAAEAAAAAAAsY3R0cwAAAAAAAAABAAAAAQAAAQAABAAAABdzdHNjAAAAAAAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAAAAAAABAAAEAAAAABRzdGNvAAAAAAAAAAEAAAAQAAACU3VkdGEAAABsbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpciAAAAAAAAAAAAAAAAAAAAAAYXBwbAAAAEFpbHN0AAAAMal0b28AAAAlZGF0YQAAAAEAAAAAYmFzZTY0IEVuY29kZWQgYnkgRGF2aWQgV2Fsc2g=";
+            video.play();
+            document.getElementById('wake-lock').innerText = "WakeLock: ON";
+            document.getElementById('wake-lock').style.color = "#10b981";
+        } else {
+            video.pause();
+            document.getElementById('wake-lock').innerText = "WakeLock: OFF";
+        }
+    }
+
+    async function cycle() {
+        if(!active) return;
+
+        const token = document.getElementById('token').value;
+        const pfps = document.getElementById('pfps').value.split('\n').filter(l => l.length > 5);
+        const stats = document.getElementById('stats').value.split('\n').filter(l => l.length > 0);
+
+        // Pick random items
+        const randomPfp = pfps[Math.floor(Math.random() * pfps.length)];
+        const randomStat = stats[Math.floor(Math.random() * stats.length)];
+
+        log(`Running Random Update...`);
+
+        // Update PFP
+        if(randomPfp) {
+            try {
+                const img = await fetch(randomPfp);
+                const blob = await img.blob();
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = async () => {
+                    await fetch('https://discord.com/api/v9/users/@me', {
+                        method: 'PATCH',
+                        headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ avatar: reader.result })
+                    });
+                };
+            } catch(e) {}
+        }
+
+        // Update Status
+        if(randomStat) {
+            await fetch('https://discord.com/api/v9/users/@me/settings', {
+                method: 'PATCH',
+                headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ custom_status: { text: randomStat } })
+            });
+            log(`Status -> "${randomStat}"`);
+        }
+
+        // CALCULATE NEXT RANDOM TIME (5 to 30 minutes)
+        const min = 5; 
+        const max = 30;
+        const randMinutes = Math.floor(Math.random() * (max - min + 1) + min);
+        const nextMs = randMinutes * 60000;
+
+        document.getElementById('next-run').innerText = `Next: ${randMinutes}m`;
+        log(`Waiting ${randMinutes} minutes...`);
+        
+        nextTimeout = setTimeout(cycle, nextMs);
+    }
+
+    function initiate() {
+        if(!document.getElementById('token').value) return alert("Token Required");
+        active = true;
+        toggleWakeLock(true);
+        document.getElementById('start').style.display = "none";
+        document.getElementById('stop').style.display = "block";
+        log("24/7 THREAD INITIATED.");
+        cycle();
+    }
+
+    function terminate() {
+        active = false;
+        clearTimeout(nextTimeout);
+        toggleWakeLock(false);
+        document.getElementById('start').style.display = "block";
+        document.getElementById('stop').style.display = "none";
+        log("TERMINATED BY USER.", true);
+    }
+</script>
+</body>
+</html>
